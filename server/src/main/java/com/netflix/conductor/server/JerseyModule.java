@@ -37,7 +37,7 @@ import com.sun.jersey.guice.JerseyServletModule;
 import com.sun.jersey.guice.spi.container.servlet.GuiceContainer;
 
 /**
- * 
+ * 负责启动Swagger 服务，以便给客户端提供REST API接口。
  * @author Viren
  *
  */

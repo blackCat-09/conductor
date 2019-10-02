@@ -37,6 +37,9 @@ import java.util.concurrent.ExecutorService;
  */
 public class ServerModule extends AbstractModule {
 
+    /**
+     * 根据Conductor Server 启动命令中配置的参数加载相应的模块。
+     */
     @Override
     protected void configure() {
         install(new CoreModule());

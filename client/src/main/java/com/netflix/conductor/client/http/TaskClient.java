@@ -231,6 +231,7 @@ public class TaskClient extends ClientBase {
      */
     public void updateTask(TaskResult taskResult) {
         Preconditions.checkNotNull(taskResult, "Task result cannot be null");
+        // tasks = url 是/api/tasks
         postForEntityWithRequestOnly("tasks", taskResult);
     }
 

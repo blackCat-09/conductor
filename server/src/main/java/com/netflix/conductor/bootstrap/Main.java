@@ -39,8 +39,13 @@ public class Main {
 
     private static final int EMBEDDED_ES_INIT_TIME = 5000;
 
+    /**
+     * Server 端的启动类
+     * @param args
+     * @throws Exception
+     */
     public static void main(String[] args) throws Exception {
-
+        // 加载Conductor 的配置文件
         loadConfigFile(args.length > 0 ? args[0] : System.getenv("CONDUCTOR_CONFIG_FILE"));
 
         if (args.length == 2) {
@@ -85,6 +90,7 @@ public class Main {
 
         serverInjector.getInstance(GRPCServerProvider.class).get().ifPresent(server -> {
             try {
+                // 启动 Server 端的 GRPCServer服务
                 server.start();
             } catch (IOException ioe) {
                 ioe.printStackTrace(System.err);
@@ -94,6 +100,7 @@ public class Main {
 
         serverInjector.getInstance(JettyServerProvider.class).get().ifPresent(server -> {
             try {
+                // 启动 Server 端的 JettyServer 服务
                 server.start();
             } catch (Exception ioe) {
                 ioe.printStackTrace(System.err);

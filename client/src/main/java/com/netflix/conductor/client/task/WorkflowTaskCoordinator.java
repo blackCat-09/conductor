@@ -268,7 +268,9 @@ public class WorkflowTaskCoordinator {
 					return thread;
 				});
 		this.scheduledExecutorService = Executors.newScheduledThreadPool(workers.size());
+		// 定时轮训Server 状态策略,默认每隔1秒进行轮训。根据任务名称获取当前任务信息。
 		workers.forEach(worker -> {
+			// [pollForTask] 轮训方法
 			scheduledExecutorService.scheduleWithFixedDelay(()->pollForTask(worker), worker.getPollingInterval(), worker.getPollingInterval(), TimeUnit.MILLISECONDS);
 		});
 	}
@@ -321,8 +323,12 @@ public class WorkflowTaskCoordinator {
 				logger.warn("All workers are busy, not polling. queue size = {}, max = {}", workerQueue.size(), workerQueueSize);
 				return;
             }
+            // 获取当前客户端的任务名称
 			String taskType = worker.getTaskDefName();
-
+			/**
+			 * 根据当前客户端的任务名称从 Server 端的状态机获取是否有自己要执行的任务。
+			 * 如果有任务则获取执行，只能获取一次
+			 */
 			tasks = getPollTimer(taskType)
 					.record(() -> taskClient.batchPollTasksInDomain(taskType, domain, worker.getIdentity(), realPollCount, worker.getLongPollTimeoutInMS()));
 			incrementTaskPollCount(taskType, tasks.size());
@@ -331,14 +337,16 @@ public class WorkflowTaskCoordinator {
 			WorkflowTaskMetrics.incrementTaskPollErrorCount(worker.getTaskDefName(), e);
 			logger.error("Error when polling for tasks", e);
 		}
-
+		// 根据获取的任务列表，以线程的方式启动执行任务。
 		for (Task task : tasks) {
 			try {
 				executorService.submit(() -> {
 					try {
 						logger.debug("Executing task {}, taskId - {} in worker - {}", task.getTaskDefName(), task.getTaskId(), worker.getIdentity());
+						// 【execute】 执行用户自定义的任务逻辑
 						execute(worker, task);
 					} catch (Throwable t) {
+						// 执行失败,置状态为失败，并将失败结果返回 Server 端。
 						task.setStatus(Task.Status.FAILED);
 						TaskResult result = new TaskResult(task);
 						handleException(t, result, worker, task);
@@ -375,6 +383,7 @@ public class WorkflowTaskCoordinator {
 		com.google.common.base.Stopwatch stopwatch = com.google.common.base.Stopwatch.createStarted();
 		TaskResult result = null;
 		try {
+			// 真正执行用户，Task 任务的代码，执行完后返回值被封装为 TaskResult 对象。
 			logger.debug("Executing task {} in worker {} at {}", task, worker.getClass().getSimpleName(), worker.getIdentity());
 			result = worker.execute(task);
 			result.setWorkflowInstanceId(task.getWorkflowInstanceId());
@@ -393,8 +402,9 @@ public class WorkflowTaskCoordinator {
 					.record(stopwatch.elapsed(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
 
 		}
-
+		// 更新任务状态, 成功或失败。
 		logger.debug("Task {} executed by worker {} at {} with status {}", task.getTaskId(), worker.getClass().getSimpleName(), worker.getIdentity(), task.getStatus());
+		// [updateWithRetry] 更新Server 端任务状态和任务的执行结果。访问URL是 /api/tasks
 		updateWithRetry(updateRetryCount, task, result, worker);
 	}
 
@@ -439,6 +449,13 @@ public class WorkflowTaskCoordinator {
 		return workerNamePrefix;
 	}
 
+	/**
+	 * 更新Server 端任务状态和任务的执行结果。访问URL是 /api/tasks
+	 * @param count
+	 * @param task
+	 * @param result
+	 * @param worker
+	 */
 	private void updateWithRetry(int count, Task task, TaskResult result, Worker worker) {
 		try {
             String updateTaskDesc = String.format("Retry updating task result: %s for task: %s in worker: %s", result.toString(), task.getTaskDefName(), worker.getIdentity());
@@ -453,6 +470,7 @@ public class WorkflowTaskCoordinator {
 
             new RetryUtil<>().retryOnException(() ->
             {
+            	// 上传server 更新Task 状态信息。
                 taskClient.updateTask(result);
                 return null;
             }, null, null, count, updateTaskDesc, methodName);
