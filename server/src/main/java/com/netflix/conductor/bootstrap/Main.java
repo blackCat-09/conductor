@@ -90,7 +90,7 @@ public class Main {
 
         serverInjector.getInstance(GRPCServerProvider.class).get().ifPresent(server -> {
             try {
-                // 启动 Server 端的 GRPCServer服务
+                // 启动 Server 端的 GRPCServer (gRpc)服务
                 server.start();
             } catch (IOException ioe) {
                 ioe.printStackTrace(System.err);
