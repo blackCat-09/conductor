@@ -109,7 +109,7 @@ public class Main {
         });
 
     }
-    // 加载配置文件4
+    // 加载配置文件5
     private static void loadConfigFile(String propertyFile) throws IOException {
         if (propertyFile == null) return;
         System.out.println("Using config file: " + propertyFile);
