@@ -64,11 +64,12 @@ public class JettyServer implements Lifecycle {
         this.server = new Server(port);
 
         ServletContextHandler context = new ServletContextHandler();
+        // 添加GuiceFilter 过滤器
         context.addFilter(GuiceFilter.class, "/*", EnumSet.allOf(DispatcherType.class));
         context.setWelcomeFiles(new String[]{"index.html"});
 
         server.setHandler(context);
-
+        // 启动 jetty 服务。
         server.start();
         System.out.println("Started server on http://localhost:" + port + "/");
         try {

@@ -106,11 +106,12 @@ public class DeciderService {
                 tasksToBeScheduled = new LinkedList<>();
             }
         }
+        // [decide]
         return decide(workflow, tasksToBeScheduled);
     }
 
     private DeciderOutcome decide(final Workflow workflow, List<Task> preScheduledTasks) throws TerminateWorkflowException {
-
+        // Decider 选择结果类
         DeciderOutcome outcome = new DeciderOutcome();
 
         if (workflow.getStatus().equals(WorkflowStatus.PAUSED)) {
@@ -127,6 +128,10 @@ public class DeciderService {
         // Filter the list of tasks and include only tasks that are not retried, not executed
         // marked to be skipped and not part of System tasks that is DECISION, FORK, JOIN
         // This list will be empty for a new workflow being started
+        /**
+         * 筛选列表，只留未重试、和未执行的任务。跳过不是系统任务的部分，比如 DECISION、FORK、JOIN
+         * 对于一个正在启动的新工作流。这个任务列表为空。
+         */
         List<Task> pendingTasks = workflow.getTasks()
                 .stream()
                 .filter(isNonPendingTask)
@@ -183,9 +188,13 @@ public class DeciderService {
                     pendingTask.setStatus(COMPLETED_WITH_ERRORS);
                 }
             }
-
+            /**
+             * 如果任务没有执行、也没有正在重试状态。并且当前以及终止。则通过
+             * getNextTask 方法获取下一个任务。
+             */
             if (!pendingTask.isExecuted() && !pendingTask.isRetried() && pendingTask.getStatus().isTerminal()) {
                 pendingTask.setExecuted(true);
+                // 获取下一个任务。【getNextTask】
                 List<Task> nextTasks = getNextTask(workflow, pendingTask);
                 nextTasks.forEach(nextTask -> tasksToBeScheduled.putIfAbsent(nextTask.getReferenceTaskName(), nextTask));
                 outcome.tasksToBeUpdated.add(pendingTask);
@@ -331,11 +340,15 @@ public class DeciderService {
         }
 
         String taskReferenceName = task.getReferenceTaskName();
+        /**
+         * 根据任务名称从工作流定义中获取下一个任务，可能是分支、也可能是并行。分支等判断逻辑
+         */
         WorkflowTask taskToSchedule = workflowDef.getNextTask(taskReferenceName);
         while (isTaskSkipped(taskToSchedule, workflow)) {
             taskToSchedule = workflowDef.getNextTask(taskToSchedule.getTaskReferenceName());
         }
         if (taskToSchedule != null) {
+            // [getTasksToBeScheduled]
             return getTasksToBeScheduled(workflow, taskToSchedule, 0);
         }
 
@@ -530,6 +543,10 @@ public class DeciderService {
 
     public List<Task> getTasksToBeScheduled(Workflow workflow,
                                             WorkflowTask taskToSchedule, int retryCount, String retriedTaskId) {
+        /**
+         * 作用，如果任务的输入数据存储在外部存储介质中。则要先从外部存储介质中下载任务的输入数据。然后
+         * 深拷贝到 workflow 实例中返回。
+         */
         workflow = populateWorkflowAndTaskData(workflow);
         Map<String, Object> input = parametersUtils.getTaskInput(taskToSchedule.getInputParameters(),
                 workflow, null, null);
@@ -541,6 +558,7 @@ public class DeciderService {
         }
 
         // get tasks already scheduled (in progress/terminal) for  this workflow instance
+        // 获取工作流中正在运行的任务列表。
         List<String> tasksInWorkflow = workflow.getTasks().stream()
                 .filter(runningTask -> runningTask.getStatus().equals(Status.IN_PROGRESS) || runningTask.getStatus().isTerminal())
                 .map(Task::getReferenceTaskName)

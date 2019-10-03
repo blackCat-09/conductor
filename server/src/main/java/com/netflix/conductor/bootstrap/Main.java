@@ -100,7 +100,7 @@ public class Main {
         // 启动 Server 端的 JettyServer (jetty) 服务
         serverInjector.getInstance(JettyServerProvider.class).get().ifPresent(server -> {
             try {
-                // 启动 Server 端的 JettyServer (jetty) 服务
+                // [start ]启动 Server 端的 JettyServer (jetty) 服务
                 server.start();
             } catch (Exception ioe) {
                 ioe.printStackTrace(System.err);

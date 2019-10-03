@@ -762,8 +762,9 @@ public class WorkflowExecutor {
         if (taskResult == null) {
             throw new ApplicationException(Code.INVALID_INPUT, "Task object is null");
         }
-
+        // 获取工作流ID
         String workflowId = taskResult.getWorkflowInstanceId();
+        // 通过流程ID，获取当前正在执行的工作流运行时数据
         Workflow workflowInstance = executionDAOFacade.getWorkflowById(workflowId, true);
 
         // FIXME Backwards compatibility for legacy workflows already running.
@@ -771,12 +772,12 @@ public class WorkflowExecutor {
         if (workflowInstance.getWorkflowDefinition() == null) {
             workflowInstance = metadataMapperService.populateWorkflowWithDefinitions(workflowInstance);
         }
-
+        // 通过任务ID，获取正在执行的任务
         Task task = Optional.ofNullable(executionDAOFacade.getTaskById(taskResult.getTaskId()))
                 .orElseThrow(() -> new ApplicationException(Code.NOT_FOUND, "No such task found by id: " + taskResult.getTaskId()));
 
         LOGGER.debug("Task: {} belonging to Workflow {} being updated", task, workflowInstance);
-
+        // 获取队列的名字，这个名字用于 dyno-queue 队列
         String taskQueueName = QueueUtils.getQueueName(task);
 
         if (task.getStatus().isTerminal()) {
@@ -869,7 +870,7 @@ public class WorkflowExecutor {
 
         taskResult.getLogs().forEach(taskExecLog -> taskExecLog.setTaskId(task.getTaskId()));
         executionDAOFacade.addTaskExecLog(taskResult.getLogs());
-
+        // [decide] 关键，当前任务执行完毕后以后根据添加判断下一个任务的过程。
         decide(workflowId);
 
         if (task.getStatus().isTerminal()) {
@@ -928,12 +929,13 @@ public class WorkflowExecutor {
         workflow = metadataMapperService.populateWorkflowWithDefinitions(workflow);
 
         try {
+            // [decide] 查看当前工作流中Task。
             DeciderService.DeciderOutcome outcome = deciderService.decide(workflow);
             if (outcome.isComplete) {
                 completeWorkflow(workflow);
                 return true;
             }
-
+            // taskToBeScheduled 是执行的下一个任务列表，
             List<Task> tasksToBeScheduled = outcome.tasksToBeScheduled;
             setTaskDomains(tasksToBeScheduled, workflow);
             List<Task> tasksToBeUpdated = outcome.tasksToBeUpdated;
@@ -941,6 +943,8 @@ public class WorkflowExecutor {
             boolean stateChanged = false;
 
             if (!tasksToBeRequeued.isEmpty()) {
+                // 如果要执行的任务列表不为空，则将任务添加到 dyno-queue 队列中
+                // [addTaskToQueue]
                 addTaskToQueue(tasksToBeRequeued);
             }
 
@@ -975,7 +979,8 @@ public class WorkflowExecutor {
                 executionDAOFacade.updateWorkflow(workflow);
                 queueDAO.push(DECIDER_QUEUE, workflow.getWorkflowId(), workflow.getPriority(), config.getSweepFrequency());
             }
-
+            // 创建要执行的任务记录，判断当前任务的类型是不是异步的。如果是异步的则开始异步
+            // 工作流，最后将过滤完的任务添加到 dyno-queue 队列中。
             stateChanged = scheduleTask(workflow, tasksToBeScheduled) || stateChanged;
 
             if (stateChanged) {
@@ -1098,6 +1103,11 @@ public class WorkflowExecutor {
         String taskQueueName = QueueUtils.getQueueName(task);
         queueDAO.remove(taskQueueName, task.getTaskId());
         if (task.getCallbackAfterSeconds() > 0) {
+            /**
+             * 根据工作流定义的属性 startDelay 来决定队列的延迟情况，可以基于此实现分布式任务调度
+             *
+             * callbackAfterSeconds 延迟时间（ 对应工作流定义 startDelay 属性）
+             */
             queueDAO.push(taskQueueName, task.getTaskId(), task.getWorkflowPriority(), task.getCallbackAfterSeconds());
         } else {
             queueDAO.push(taskQueueName, task.getTaskId(), task.getWorkflowPriority(), 0);

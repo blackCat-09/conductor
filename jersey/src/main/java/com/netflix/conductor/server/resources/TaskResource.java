@@ -100,6 +100,11 @@ public class TaskResource {
 		return taskService.getPendingTaskForWorkflow(workflowId, taskReferenceName);
 	}
 
+	/**
+	 * 更新Task 信息
+	 * @param taskResult
+	 * @return
+	 */
 	@POST
 	@ApiOperation("Update a task")
 	@Produces({MediaType.TEXT_PLAIN, MediaType.APPLICATION_JSON})

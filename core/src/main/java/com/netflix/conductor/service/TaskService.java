@@ -77,6 +77,7 @@ public interface TaskService {
      *
      * @param taskResult Instance of {@link TaskResult}
      * @return task Id of the updated task.
+     * 更新Task 信息
      */
     String updateTask(@NotNull(message = "TaskResult cannot be null or empty.") @Valid TaskResult taskResult);
 
